@@ -24,8 +24,8 @@ typedef struct hash_map {
     hash_entry_t **array;   //配列
 } hash_map_t;
 
-static uint32_t fnv1_hash(const char *str);
 static uint32_t fnv1a_hash(const char *str);
+static uint32_t fnv1_hash(const char *str);
 static uint32_t dbg_hash(const char *str);
 static uint32_t calc_hash(const char *str);
 static void rehash(hash_map_t *hash_map);
@@ -58,21 +58,21 @@ void free_hash_map(hash_map_t *hash_map) {
 
 //https://jonosuke.hatenadiary.org/entry/20100406/p1
 //http://www.isthe.com/chongo/tech/comp/fnv/index.html
-#define FNV_OFFSET_BASIS32  2166136261  //2^24 + 2^8 + 0x93
+#define OFFSET_BASIS32      2166136261  //2^24 + 2^8 + 0x93
 #define FNV_PRIME32         16777619
-static uint32_t fnv1_hash(const char *str) {
-    uint32_t hash = FNV_OFFSET_BASIS32;
+static uint32_t fnv1a_hash(const char *str) {
+    uint32_t hash = OFFSET_BASIS32;
     for (const char *p=str; *p; p++) {
-        hash *= FNV_PRIME32;
         hash ^= *p;
+        hash *= FNV_PRIME32;
     }
     return hash;
 }
-static uint32_t fnv1a_hash(const char *str) {
-    uint32_t hash = FNV_OFFSET_BASIS32;
+static uint32_t fnv1_hash(const char *str) {
+    uint32_t hash = OFFSET_BASIS32;
     for (const char *p=str; *p; p++) {
-        hash ^= *p;
         hash *= FNV_PRIME32;
+        hash ^= *p;
     }
     return hash;
 }
@@ -169,7 +169,7 @@ int put_hash_map(hash_map_t *hash_map, const char *key, void *data) {
 
 //キーに対応するデータの取得
 //存在すればdataに値を設定して1を返す。
-//存在しなければ0を返す。
+//存在しなければ0を返す。dataにNULLを指定できる。
 int get_hash_map(hash_map_t *hash_map, const char *key, void **data) {
     assert(hash_map);
     assert(key);
@@ -177,7 +177,7 @@ int get_hash_map(hash_map_t *hash_map, const char *key, void **data) {
     hash_entry_t *entry = hash_map->array[idx];
     while (entry) {
         if (match(entry->key, key)) {
-            *data = entry->data;
+            if (data) *data = entry->data;
             return 1;
         }
         entry = entry->next;
