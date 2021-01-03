@@ -192,7 +192,7 @@ int del_hash_map(hash_map_t *hash_map, const char *key) {
     assert(hash_map);
     assert(key);
     int idx = calc_hash(key) % hash_map->capacity;
-    hash_entry_t *entry = hash_map->array[idx];
+    hash_entry_t *entry   =  hash_map->array[idx];
     hash_entry_t **parent = &hash_map->array[idx];
     while (entry) {
         if (match(entry->key, key)) {
@@ -210,6 +210,47 @@ int del_hash_map(hash_map_t *hash_map, const char *key) {
 //ハッシュマップのデータ数
 int num_hash_map(hash_map_t *hash_map) {
     return hash_map->num;
+}
+
+//イテレータ
+typedef struct iterator {
+    int             next_idx;
+    hash_entry_t    *next_entry;
+    hash_map_t      *hash_map;
+} iterator_t;
+
+//ハッシュマップのイテレータを生成する。
+iterator_t *iterate_hash_map(hash_map_t *hash_map) {
+    assert(hash_map);
+    iterator_t *iterator = calloc(1, sizeof(iterator_t));
+    iterator->hash_map = hash_map;
+    return iterator;
+}
+
+//次のデータをkey,dataに設定して1を返す。key、dataにNULL指定可能。
+//次のデータがない場合は0を返す。
+//イテレートする順番はランダム。
+int next_ierate(iterator_t* iterator, char **key, void **data) {
+    assert(iterator);
+    hash_map_t   *hash_map   = iterator->hash_map;
+    hash_entry_t *hash_entry = iterator->next_entry;
+    for (; iterator->next_idx < hash_map->capacity; iterator->next_idx++) {
+        if (hash_entry==NULL)
+            hash_entry = hash_map->array[iterator->next_idx];
+        if (hash_entry) {
+            if (key)  *key  = hash_entry->key;
+            if (data) *data = hash_entry->data;
+            iterator->next_entry = hash_entry->next;
+            if (iterator->next_entry==NULL) iterator->next_idx++;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+//ハッシュマップのイテレータを解放する。
+void end_iterate(iterator_t* iterator) {
+    free(iterator);
 }
 
 //ハッシュマップをダンプする
