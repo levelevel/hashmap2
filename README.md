@@ -9,5 +9,5 @@ C言語で実装したチェイン法のハッシュマップです。
 
 ## 参考
 - https://jonosuke.hatenadiary.org/entry/20100406/p1
-- https://ja.wikipedia.org/wiki/%E3%83%8F%E3%83%83%E3%82%B7%E3%83%A5%E3%83%86%E3%83%BC%E3%83%96%E3%83%AB
-- https://github.com/rui314/chibicc
+- [https://ja.wikipedia.org/wiki/ハッシュテーブル](https://ja.wikipedia.org/wiki/%E3%83%8F%E3%83%83%E3%82%B7%E3%83%A5%E3%83%86%E3%83%BC%E3%83%96%E3%83%AB)
+- [chibicc: A Small C Compiler](https://github.com/rui314/chibicc)

@@ -21,7 +21,7 @@ typedef struct hash_entry {
 typedef struct hash_map {
     int num;                //データ数
     int capacity;           //配列の最大数
-    hash_entry_t **array;   //配列
+    hash_entry_t **buckets; //配列
 } hash_map_t;
 
 static uint32_t fnv1a_hash(const char *str);
@@ -36,7 +36,7 @@ static void insert_entry(hash_map_t *hash_map, hash_entry_t *entry, int idx);
 hash_map_t *new_hash_map(void) {
     hash_map_t *hash_map = calloc(1, sizeof(hash_map_t));
     hash_map->capacity = HASH_MAP_INIT_SIZE;
-    hash_map->array = calloc(HASH_MAP_INIT_SIZE, sizeof(hash_entry_t*));
+    hash_map->buckets = calloc(HASH_MAP_INIT_SIZE, sizeof(hash_entry_t*));
     return hash_map;
 }
 
@@ -44,14 +44,14 @@ hash_map_t *new_hash_map(void) {
 void free_hash_map(hash_map_t *hash_map) {
     if (hash_map) {
         for (int i=0; i<hash_map->capacity; i++) {
-            hash_entry_t *entry = hash_map->array[i];
+            hash_entry_t *entry = hash_map->buckets[i];
             while (entry) {
                 hash_entry_t *next = entry->next;
                 free(entry);
                 entry = next;
             }
         }
-        free(hash_map->array);
+        free(hash_map->buckets);
     }
     free(hash_map);
 }
@@ -87,10 +87,10 @@ static uint32_t dbg_hash(const char *str) {
 hash_map_func_type_t hash_map_func = HASH_MAP_FUNC_FNV_1A;
 static uint32_t calc_hash(const char *str) {
     switch (hash_map_func) {
-        case HASH_MAP_FUNC_FNV_1:
-            return fnv1_hash(str);
         case HASH_MAP_FUNC_FNV_1A:
             return fnv1a_hash(str);
+        case HASH_MAP_FUNC_FNV_1:
+            return fnv1_hash(str);
         case HASH_MAP_FUNC_DBG:
             return dbg_hash(str);
         default:
@@ -105,11 +105,11 @@ static void rehash(hash_map_t *hash_map) {
 
     //サイズを拡張した新しいハッシュマップを作成する
     new_map.capacity = hash_map->capacity * HASH_MAP_GROW_FACTOR;
-    new_map.array = calloc(new_map.capacity, sizeof(hash_entry_t*));
+    new_map.buckets = calloc(new_map.capacity, sizeof(hash_entry_t*));
 
     //すべてのエントリをコピーする
     for (int i=0; i<hash_map->capacity; i++) {
-        hash_entry_t *entry = hash_map->array[i];
+        hash_entry_t *entry = hash_map->buckets[i];
         while (entry) {
             hash_entry_t *next = entry->next;
             int idx = calc_hash(entry->key) % new_map.capacity;
@@ -118,7 +118,7 @@ static void rehash(hash_map_t *hash_map) {
         }
     }
     assert(hash_map->num==new_map.num);
-    free(hash_map->array);
+    free(hash_map->buckets);
     *hash_map = new_map;
 }
 
@@ -129,9 +129,9 @@ static int match(const char *key1, const char *key2) {
 
 //エントリをリストに挿入
 static void insert_entry(hash_map_t *hash_map, hash_entry_t *entry, int idx) {
-    hash_entry_t *top_entry = hash_map->array[idx];
+    hash_entry_t *top_entry = hash_map->buckets[idx];
     entry->next = top_entry;
-    hash_map->array[idx] = entry;
+    hash_map->buckets[idx] = entry;
     hash_map->num++;
 }
 
@@ -142,8 +142,8 @@ int put_hash_map(hash_map_t *hash_map, const char *key, void *data) {
     assert(hash_map);
     assert(key);
     int idx = calc_hash(key) % hash_map->capacity;
-    hash_entry_t *entry = hash_map->array[idx];
-    hash_entry_t **parent = &hash_map->array[idx];
+    hash_entry_t *entry = hash_map->buckets[idx];
+    hash_entry_t **parent = &hash_map->buckets[idx];
     while (entry) {
         if (match(entry->key, key)) {   //データが存在するので上書き
             *parent = entry = realloc(entry, sizeof(hash_entry_t)+strlen(key)+1);
@@ -174,7 +174,7 @@ int get_hash_map(hash_map_t *hash_map, const char *key, void **data) {
     assert(hash_map);
     assert(key);
     int idx = calc_hash(key) % hash_map->capacity;
-    hash_entry_t *entry = hash_map->array[idx];
+    hash_entry_t *entry = hash_map->buckets[idx];
     while (entry) {
         if (match(entry->key, key)) {
             if (data) *data = entry->data;
@@ -192,8 +192,8 @@ int del_hash_map(hash_map_t *hash_map, const char *key) {
     assert(hash_map);
     assert(key);
     int idx = calc_hash(key) % hash_map->capacity;
-    hash_entry_t *entry   =  hash_map->array[idx];
-    hash_entry_t **parent = &hash_map->array[idx];
+    hash_entry_t *entry   =  hash_map->buckets[idx];
+    hash_entry_t **parent = &hash_map->buckets[idx];
     while (entry) {
         if (match(entry->key, key)) {
             *parent = entry->next;
@@ -236,7 +236,7 @@ int next_ierate(iterator_t* iterator, char **key, void **data) {
     hash_entry_t *hash_entry = iterator->next_entry;
     for (; iterator->next_idx < hash_map->capacity; iterator->next_idx++) {
         if (hash_entry==NULL)
-            hash_entry = hash_map->array[iterator->next_idx];
+            hash_entry = hash_map->buckets[iterator->next_idx];
         if (hash_entry) {
             if (key)  *key  = hash_entry->key;
             if (data) *data = hash_entry->data;
@@ -261,7 +261,7 @@ void dump_hash_map(const char *str, hash_map_t *hash_map, int level) {
     int n_used = 0;     //配列の使用数
     int max_chain = 0;  //チエインの最大長
     for (int i=0; i<hash_map->capacity; i++) {
-        hash_entry_t *entry = hash_map->array[i];
+        hash_entry_t *entry = hash_map->buckets[i];
         if (!entry) continue;
         n_used++;
         entry = entry->next;
@@ -278,7 +278,7 @@ void dump_hash_map(const char *str, hash_map_t *hash_map, int level) {
         n_used*100/hash_map->capacity, n_col*100/hash_map->capacity, max_chain);
     if (level>0) {
         for (int i=0; i<hash_map->capacity; i++) {
-            hash_entry_t *entry = hash_map->array[i];
+            hash_entry_t *entry = hash_map->buckets[i];
             if (!entry) continue;
             fprintf(stderr, "%03d: \"%s\", %p\n", i, entry->key, entry->data);
             entry = entry->next;
