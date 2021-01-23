@@ -20,6 +20,7 @@ typedef struct hash_entry {
 //ハッシュマップ本体
 typedef struct hash_map {
     int num;                //データ数
+    int limit;              //配列の使用数の上限（used>limitになるとrehashする）
     int capacity;           //配列の最大数
     hash_entry_t **buckets; //配列
 } hash_map_t;
@@ -35,8 +36,11 @@ static void insert_entry(hash_map_t *hash_map, hash_entry_t *entry, int idx);
 //ハッシュマップを作成する。
 hash_map_t *new_hash_map(void) {
     hash_map_t *hash_map = calloc(1, sizeof(hash_map_t));
+    assert(hash_map);
     hash_map->capacity = HASH_MAP_INIT_SIZE;
+    hash_map->limit = (hash_map->capacity * HASH_MAP_MAX_CAPACITY) / 100;
     hash_map->buckets = calloc(HASH_MAP_INIT_SIZE, sizeof(hash_entry_t*));
+    assert(hash_map->buckets);
     return hash_map;
 }
 
@@ -105,7 +109,9 @@ static void rehash(hash_map_t *hash_map) {
 
     //サイズを拡張した新しいハッシュマップを作成する
     new_map.capacity = hash_map->capacity * HASH_MAP_GROW_FACTOR;
+    new_map.limit = (hash_map->capacity * HASH_MAP_MAX_CAPACITY) / 100;
     new_map.buckets = calloc(new_map.capacity, sizeof(hash_entry_t*));
+    assert(new_map.buckets);
 
     //すべてのエントリをコピーする
     for (int i=0; i<hash_map->capacity; i++) {
@@ -141,6 +147,10 @@ static void insert_entry(hash_map_t *hash_map, hash_entry_t *entry, int idx) {
 int put_hash_map(hash_map_t *hash_map, const char *key, void *data) {
     assert(hash_map);
     assert(key);
+    if (hash_map->num > hash_map->limit) {
+        rehash(hash_map);
+    }
+
     int idx = calc_hash(key) % hash_map->capacity;
     hash_entry_t *entry = hash_map->buckets[idx];
     hash_entry_t **parent = &hash_map->buckets[idx];
@@ -156,11 +166,8 @@ int put_hash_map(hash_map_t *hash_map, const char *key, void *data) {
     }
 
     //データ追加
-    if ((hash_map->num * 100) / hash_map->capacity > HASH_MAP_MAX_CAPACITY ) {
-        rehash(hash_map);
-        idx = calc_hash(key) % hash_map->capacity;
-    }
     entry = calloc(1, sizeof(hash_entry_t)+strlen(key)+1);
+    assert(entry);
     strcpy(entry->key, key);
     entry->data = data;
     insert_entry(hash_map, entry, idx);
