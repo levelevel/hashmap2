@@ -230,6 +230,7 @@ typedef struct iterator {
 iterator_t *iterate_hash_map(hash_map_t *hash_map) {
     assert(hash_map);
     iterator_t *iterator = calloc(1, sizeof(iterator_t));
+    assert(iterator);
     iterator->hash_map = hash_map;
     return iterator;
 }
